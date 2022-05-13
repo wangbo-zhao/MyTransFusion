@@ -240,6 +240,9 @@ def main():
             CLASSES=datasets[0].CLASSES)
     # add an attribute for visualization convenience
     model.CLASSES = datasets[0].CLASSES
+    # a = datasets[0].dataset
+    # for i, _ in enumerate(a):
+    #     print("====================={}=======================".format(i))
     train_detector(
         model,
         datasets,
@@ -251,4 +254,6 @@ def main():
 
 
 if __name__ == '__main__':
+    # import os
+    # os.environ["CUDA_VISIBLE_DEVICES"] = '3'
     main()

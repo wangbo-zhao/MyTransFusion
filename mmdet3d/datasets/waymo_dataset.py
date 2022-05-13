@@ -145,7 +145,7 @@ class WaymoDataset(KittiDataset):
 
                 image_paths.append(img_filename.replace('image_0', f'image_{idx_img}'))
                 lidar2img_rts.append(lidar2img)
-
+        #lidar2img为一个列表，表示将点云坐标投影到对应camera图像的转换矩阵
         pts_filename = self._get_pts_filename(sample_idx)
         input_dict = dict(
             sample_idx=sample_idx,
