@@ -180,7 +180,7 @@ def main():
     #     model.CLASSES = dataset.CLASSES
 
     if not distributed:
-        model = MMDataParallel(model, device_ids=[2])
+        model = MMDataParallel(model, device_ids=[0])
         outputs = single_gpu_test(model, data_loader, args.show, args.show_dir)
     else:
         model = MMDistributedDataParallel(
