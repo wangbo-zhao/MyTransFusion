@@ -218,9 +218,9 @@ class WaymoDataset(KittiDataset):
             from ..core.evaluation.waymo_utils.prediction_kitti_to_waymo import \
                 KITTI2Waymo  # noqa
             waymo_root = osp.join(
-                self.data_root.split('kitti_format')[0], 'waymo_format')
+                self.data_root.split('kitti_format')[0], 'waymo_format') # waymo_root 'data/waymo/waymo_format'
             if self.split == 'training':
-                waymo_tfrecords_dir = osp.join(waymo_root, 'validation')
+                waymo_tfrecords_dir = osp.join(waymo_root, 'validation') # 'data/waymo/waymo_format/validation'
                 prefix = '1'
             elif self.split == 'testing':
                 waymo_tfrecords_dir = osp.join(waymo_root, 'testing')
@@ -229,7 +229,7 @@ class WaymoDataset(KittiDataset):
                 raise ValueError('Not supported split value.')
             save_tmp_dir = tempfile.TemporaryDirectory()
             waymo_results_save_dir = save_tmp_dir.name
-            waymo_results_final_path = f'{pklfile_prefix}.bin'
+            waymo_results_final_path = f'{pklfile_prefix}.bin' # 'results/waymo-car/kitti_results.bin'
             if 'pts_bbox' in result_files:
                 converter = KITTI2Waymo(result_files['pts_bbox'],
                                         waymo_tfrecords_dir,

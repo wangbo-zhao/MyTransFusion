@@ -16,7 +16,8 @@ from glob import glob
 from os.path import join
 from waymo_open_dataset import label_pb2
 from waymo_open_dataset.protos import metrics_pb2
-
+import os
+import pickle
 
 class KITTI2Waymo(object):
     """KITTI predictions to Waymo converter.
@@ -70,15 +71,16 @@ class KITTI2Waymo(object):
                                             [-1.0, 0.0, 0.0, 0.0],
                                             [0.0, -1.0, 0.0, 0.0],
                                             [0.0, 0.0, 0.0, 1.0]])
+        self.converted_dir = self.waymo_tfrecords_dir + "_converted"
 
         self.get_file_names()
         self.create_folder()
 
     def get_file_names(self):
         """Get file names of waymo raw data."""
-        self.waymo_tfrecord_pathnames = sorted(
-            glob(join(self.waymo_tfrecords_dir, '*.tfrecord')))
-        print(len(self.waymo_tfrecord_pathnames), 'tfrecords found.')
+        self.converted_pathnames = sorted(
+            glob(join(self.converted_dir, '*.pkl')))
+        print(len(self.converted_pathnames), 'pkls found.')
 
     def create_folder(self):
         """Create folder for data conversion."""
@@ -172,43 +174,70 @@ class KITTI2Waymo(object):
         Args:
             file_idx (int): Index of the file to be converted.
         """
-        file_pathname = self.waymo_tfrecord_pathnames[file_idx]
-        file_data = tf.data.TFRecordDataset(file_pathname, compression_type='')
+        file_pathname = self.converted_pathnames[file_idx]
+        filename = file_pathname.split("/")[-1][:-4]
 
-        for frame_num, frame_data in enumerate(file_data):
-            frame = open_dataset.Frame()
-            frame.ParseFromString(bytearray(frame_data.numpy()))
 
-            filename = f'{self.prefix}{file_idx:03d}{frame_num:03d}'
+        if filename in self.name2idx:
+            pkl_file = open(file_pathname, "rb")
+            data = pickle.load(pkl_file)
+            T_k2w = data["T_k2w"]
+            context_name = data["context_name"]
+            frame_timestamp_micros = data["frame_timestamp_micros"]
+            
+            kitti_result = \
+                self.kitti_result_files[self.name2idx[filename]]
+            objects = self.parse_objects(kitti_result, T_k2w, context_name,
+                                            frame_timestamp_micros)
+        else:
+            objects = metrics_pb2.Objects()
 
-            for camera in frame.context.camera_calibrations:
-                # FRONT = 1, see dataset.proto for details
-                if camera.name == 1:
-                    T_front_cam_to_vehicle = np.array(
-                        camera.extrinsic.transform).reshape(4, 4)
+        with open(
+                join(self.waymo_results_save_dir, f'{filename}.bin'),
+                'wb') as f:
+            f.write(objects.SerializeToString())
 
-            T_k2w = T_front_cam_to_vehicle @ self.T_ref_to_front_cam
+    def pre_convert_val(self):
+  
+        for file_idx, file_pathname in enumerate(self.waymo_tfrecord_pathnames):
+        
+            print(file_pathname)
 
-            context_name = frame.context.name
-            frame_timestamp_micros = frame.timestamp_micros
+            file_data = tf.data.TFRecordDataset(file_pathname, compression_type='')
 
-            if filename in self.name2idx:
-                kitti_result = \
-                    self.kitti_result_files[self.name2idx[filename]]
-                objects = self.parse_objects(kitti_result, T_k2w, context_name,
-                                             frame_timestamp_micros)
-            else:
-                print(filename, 'not found.')
-                objects = metrics_pb2.Objects()
+            for frame_num, frame_data in enumerate(file_data):
+                frame = open_dataset.Frame()
+                frame.ParseFromString(bytearray(frame_data.numpy()))
 
-            with open(
-                    join(self.waymo_results_save_dir, f'{filename}.bin'),
-                    'wb') as f:
-                f.write(objects.SerializeToString())
+                filename = f'{self.prefix}{file_idx:03d}{frame_num:03d}'
+                print(filename)
+
+                for camera in frame.context.camera_calibrations:
+                        # FRONT = 1, see dataset.proto for details
+                    if camera.name == 1:
+                        T_front_cam_to_vehicle = np.array(
+                                camera.extrinsic.transform).reshape(4, 4)
+
+                T_k2w = T_front_cam_to_vehicle @ self.T_ref_to_front_cam
+
+                context_name = frame.context.name
+                frame_timestamp_micros = frame.timestamp_micros
+                save_context = {"T_k2w": T_k2w, "context_name": context_name, "frame_timestamp_micros": frame_timestamp_micros}
+
+                save_path = os.path.join(self.waymo_tfrecords_dir + "_converted", filename + '.pkl')
+
+                with open(save_path,'wb') as fp_calib:
+                    pickle.dump(save_context, fp_calib)
+
+
 
     def convert(self):
         """Convert action."""
         print('Start converting ...')
+        if not os.path.exists(self.waymo_tfrecords_dir + "_converted"):
+            os.makedirs(self.waymo_tfrecords_dir + "_converted", exist_ok=True)
+            self.pre_convert_val()
+
         mmcv.track_parallel_progress(self.convert_one, range(len(self)),
                                      self.workers)
         print('\nFinished ...')
@@ -222,7 +251,7 @@ class KITTI2Waymo(object):
 
     def __len__(self):
         """Length of the filename list."""
-        return len(self.waymo_tfrecord_pathnames)
+        return len(self.converted_pathnames)
 
     def transform(self, T, x, y, z):
         """Transform the coordinates with matrix T.

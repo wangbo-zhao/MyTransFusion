@@ -85,7 +85,7 @@ def get_indice_pairs(indices,
         elif ndim == 3:
             get_indice_pairs_func = sparse_conv_ext.get_indice_pairs_3d
         elif ndim == 4:
-            get_indice_pairs_func = sparse_conv_ext.get_indice_pairs_4d
+            get_indice_pairs_func = sparse_conv_ext.get_indice_pairs_4d      
         else:
             raise NotImplementedError
         return get_indice_pairs_func(indices, batch_size, out_shape,
